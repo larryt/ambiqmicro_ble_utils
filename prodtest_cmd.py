@@ -15,12 +15,17 @@ HCI_PKT_INDICATOR_ACL_DATA          = '02'
 HCI_PKT_INDICATOR_SYNCHRONOUS_DATA  = '03'
 HCI_PKT_INDICATOR_EVENT             = '04'
 
+VS_PKT_INDICATOR_COMMAND            = '41'  # char 'A'
+
 HCI_EVENTCODE_HCI_COMMAND_COMPLETE  = '0E'
 
 HCI_OPCODE_HCI_RESET                = '0C03'
 HCI_OPCODE_HCI_LE_RECEIVER_TEST     = '201D'
 HCI_OPCODE_HCI_LE_TRANSMITTER_TEST  = '201E'
 HCI_OPCODE_HCI_LE_TEST_END          = '201F'
+
+ACTION_LIST_ENTRY0                  = 0
+
 
 dict_error_codes = {
     '00' : 'Success',
@@ -277,9 +282,15 @@ def pkt_event_parser(args, rawdata):
 
     return ret
 
+def vspkt_cmd_parser(args, rawdata):
+    # TODO
+    return None
+
+
 dict_hci_pkt_types = {
     HCI_PKT_INDICATOR_COMMAND   : (None, pkt_cmd_parser),
     HCI_PKT_INDICATOR_EVENT     : (None, pkt_event_parser),
+    VS_PKT_INDICATOR_COMMAND    : (None, None),
 }
 # ----------------------------------------------
 
@@ -342,6 +353,12 @@ def start_rx_handler(args):
 def stop_test_handler(args):
 
     return bytearray(b'\x01\x1F\x20\x00')
+
+def set_xtrim_handler(args):
+
+    cmd = bytearray(b'\x41\x4D\x31') + int(args.action[1]).to_bytes(2, byteorder='big')
+
+    return cmd
 # ----------------------------------------
 
 
@@ -354,12 +371,13 @@ def send_cmd(args, ser):
         'start_tx_cont' : ('Start TX Continuous Modulated Signal',  start_tx_cont_handler),
         'start_rx'      : ('Start RX Test',                         start_rx_handler),
         'stop_test'     : ('Stop Test',                             stop_test_handler),
+        'set_xtrim'     : ('Set 32MHz Trim Value',                  set_xtrim_handler),
     }
 
     HCI_PKT_INDICATOR_OFFSET    = 0
     HCI_PKT_PAYLOAD_OFFSET      = 1
 
-    (description, handler) = dict_actions.get(args.action, None)
+    (description, handler) = dict_actions.get(args.action[ACTION_LIST_ENTRY0], None)
 
     if handler is not None:
         cmd = handler(args)
@@ -375,7 +393,7 @@ def send_cmd(args, ser):
                 if parser is not None:
                     ret = parser(args, cmd[HCI_PKT_PAYLOAD_OFFSET:])
 
-                print (ret)
+                    print (ret)
 
             else:
                 print ('{}'.format(description))
@@ -392,7 +410,7 @@ def recv_rsp(args, ser):
 
     res = ser.read(1000)
 
-    if res is not None:
+    if len(res) > 0:
         if args.log is True:
             print ('>>', ' '.join('0x{:02X}'.format(x) for x in res))
 
@@ -417,6 +435,7 @@ def usage(name=None):
         Start TX Carrier Wave\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_cw -f <FREQ>
         Start TX Continuous Modulated Signal\t: prodtest_cmd.py -p <COM> -a start_tx_cont -f <FREQ>
         Start RX test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx -f <FREQ>
+        Set XTrim Value\t\t\t\t: prodtest_cmd.py -p <COM> -a set_xtrim <VALUE>
         Help\t\t\t\t\t: prodtest_cmd.py -h
         '''
 
@@ -438,8 +457,8 @@ def main():
                         dest        = 'action',
                         required    = True,
                         type        = str,
-                        choices     = ['reset', 'start_tx', 'start_tx_cw', 'start_tx_cont', 'start_rx', 'stop_test'],
-                        help        = 'Test actions',
+                        nargs       = '*',
+                        help        = 'Actions to be performed.',
                         )
 
     parser.add_argument('-f', '--freq',
@@ -447,7 +466,7 @@ def main():
                         required    = False,
                         type        = int,
                         default     = -1,
-                        help        = 'Index(0 to 39) of the frequency(2402MHz to 2480Mhz) to be tested.',
+                        help        = 'Channle Index(0 to 39) to be tested.',
                         )
 
     parser.add_argument('-l', '--log',
