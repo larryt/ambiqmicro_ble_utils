@@ -1,10 +1,13 @@
 #!/usr/bin/python
 
-import os
-import sys
 import argparse
+import os
 import os.path
 import serial
+import sys
+import time
+import threading
+
 from array import *
 
 VERSION     = 0
@@ -99,6 +102,19 @@ dict_error_codes = {
     '44' : 'Operation Cancelled by Host',
     '45' : 'Packet Too Long',
 }
+
+curr_sweep_freq = -1
+sweep_rf_on = False
+
+data_ready  = threading.Event()
+ 
+ 
+def keyboard_poller():
+
+    input("Press Enter to terminate the test...\r\n")
+
+    data_ready.set()
+
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Callbacks in the dictionary dict_opcodes
@@ -354,9 +370,102 @@ def stop_test_handler(args):
 
     return bytearray(b'\x01\x1F\x20\x00')
 
+def start_tx_sweep_handler(args):
+
+    global curr_sweep_freq
+    global sweep_rf_on
+
+    args_action_len = len(args.action)
+
+    if args_action_len == 1:
+        start_freq  = int(0)
+        stop_freq   = int(39)
+    elif args_action_len == 2:
+        start_freq  = int(args.action[1])
+        stop_freq   = int(39)
+    elif args_action_len == 3:
+        start_freq  = int(args.action[1])
+        stop_freq   = int(args.action[2])
+
+    if sweep_rf_on == False:
+
+        if curr_sweep_freq == -1:
+            curr_sweep_freq = start_freq
+        else:
+            curr_sweep_freq = curr_sweep_freq + 1
+
+        if curr_sweep_freq == stop_freq + 1:
+            curr_sweep_freq = start_freq
+
+        args.freq = curr_sweep_freq;
+
+        print ("start tx sweeping on channel\t{}".format(curr_sweep_freq))
+        sys.stdout.flush()
+
+        sweep_rf_on = True
+
+        return start_tx_cw_handler(args)
+    else:
+        print ("stop tx sweeping on channel\t{}".format(curr_sweep_freq))
+        sys.stdout.flush()
+
+        sweep_rf_on = False
+
+        return stop_test_handler(args)
+
+
+def start_rx_sweep_handler(args):
+    global curr_sweep_freq
+    global sweep_rf_on
+
+    args_action_len = len(args.action)
+
+    if args_action_len == 1:
+        start_freq  = int(0)
+        stop_freq   = int(39)
+    elif args_action_len == 2:
+        start_freq  = int(args.action[1])
+        stop_freq   = int(39)
+    elif args_action_len == 3:
+        start_freq  = int(args.action[1])
+        stop_freq   = int(args.action[2])
+
+    if sweep_rf_on == False:
+
+        if curr_sweep_freq == -1:
+            curr_sweep_freq = start_freq
+        else:
+            curr_sweep_freq = curr_sweep_freq + 1
+
+        if curr_sweep_freq == stop_freq + 1:
+            curr_sweep_freq = start_freq
+
+        args.freq = curr_sweep_freq;
+
+        print ("start rx sweeping on channel\t{}".format(curr_sweep_freq))
+        sys.stdout.flush()
+
+        sweep_rf_on = True
+
+        return start_rx_handler(args)
+    else:
+        print ("stop rx sweeping on channel\t{}".format(curr_sweep_freq))
+        sys.stdout.flush()
+
+        sweep_rf_on = False
+
+        return stop_test_handler(args)
+
+
 def set_xtrim_handler(args):
 
     cmd = bytearray(b'\x41\x4D\x31') + int(args.action[1]).to_bytes(2, byteorder='big')
+
+    return cmd
+
+def set_txpower_handler(args):
+
+    cmd = bytearray(b'\x41\x4D\x30') + int(args.action[1]).to_bytes(1, byteorder='big')
 
     return cmd
 # ----------------------------------------
@@ -369,9 +478,12 @@ def send_cmd(args, ser):
         'start_tx'      : ('Start TX Test',                         start_tx_handler),
         'start_tx_cw'   : ('Start TX Carrier Wave',                 start_tx_cw_handler),
         'start_tx_cont' : ('Start TX Continuous Modulated Signal',  start_tx_cont_handler),
+        'start_tx_sweep': (None,                                    start_tx_sweep_handler),
         'start_rx'      : ('Start RX Test',                         start_rx_handler),
+        'start_rx_sweep': (None,                                    start_rx_sweep_handler),
         'stop_test'     : ('Stop Test',                             stop_test_handler),
         'set_xtrim'     : ('Set 32MHz Trim Value',                  set_xtrim_handler),
+        'set_txpower'   : ('Set Tx Power',                          set_txpower_handler),
     }
 
     HCI_PKT_INDICATOR_OFFSET    = 0
@@ -396,7 +508,8 @@ def send_cmd(args, ser):
                     print (ret)
 
             else:
-                print ('{}'.format(description))
+                if description is not None:
+                    print ('{}'.format(description))
 
             ser.write(cmd)
 
@@ -434,8 +547,11 @@ def usage(name=None):
         Start TX Test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx -f <FREQ>
         Start TX Carrier Wave\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_cw -f <FREQ>
         Start TX Continuous Modulated Signal\t: prodtest_cmd.py -p <COM> -a start_tx_cont -f <FREQ>
+        Start TX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_sweep <START FREQ> <STOP FREQ>
         Start RX test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx -f <FREQ>
+        Start RX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx_sweep <START FREQ> <STOP FREQ>
         Set XTrim Value\t\t\t\t: prodtest_cmd.py -p <COM> -a set_xtrim <VALUE>
+        Set Tx Power\t\t\t\t: prodtest_cmd.py -p <COM> -a set_txpower <VALUE>[3(-20dBm), 4(-10dBm), 5(-5dBm), 8(0dBm), 15(4dBm)]
         Help\t\t\t\t\t: prodtest_cmd.py -h
         '''
 
@@ -469,6 +585,14 @@ def main():
                         help        = 'Channle Index(0 to 39) to be tested.',
                         )
 
+    parser.add_argument('-t', '--timespan',
+                        dest        = 'timespan',
+                        required    = False,
+                        type        = int,
+                        default     = 1000,
+                        help        = 'Channel duration in sweeping test',
+                        )
+
     parser.add_argument('-l', '--log',
                         dest        = 'log',
                         required    = False,
@@ -484,11 +608,16 @@ def main():
 
     args = parser.parse_args()
 
-    if args.action in ['start_tx', 'start_tx_cw', 'start_tx_cont', 'start_rx']:
+    single_action = True
+
+    if args.action[ACTION_LIST_ENTRY0] in ['start_tx', 'start_tx_cw', 'start_tx_cont', 'start_rx']:
+        single_action = True
         if args.freq not in range(0, 40):
             print ("!!! Please specify the frequency index !!!")
             print (usage())
             exit()
+    elif args.action[ACTION_LIST_ENTRY0] in ['start_tx_sweep', 'start_rx_sweep']:
+        single_action = False
 
     ser = serial.Serial(
         port        = args.port,
@@ -504,9 +633,29 @@ def main():
     ser.open()
 
     if ser.is_open is True:
-        send_cmd(args, ser)
-        recv_rsp(args, ser)
-        ser.close()
+
+        if single_action == True:
+            send_cmd(args, ser)
+            recv_rsp(args, ser)
+        else:
+            poller = threading.Thread(target=keyboard_poller)
+            poller.start()
+
+            loop = True
+
+            while loop:
+                send_cmd(args, ser)
+                recv_rsp(args, ser)
+                time.sleep(args.timespan / 1000)
+
+                if data_ready.isSet():
+                    loop = False
+                    data_ready.clear()
+
+
+
+    ser.close()
 
 if __name__ == "__main__":
-   main()
+    main()
+    exit()
