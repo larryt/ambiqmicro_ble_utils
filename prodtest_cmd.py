@@ -547,9 +547,9 @@ def usage(name=None):
         Start TX Test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx -f <FREQ>
         Start TX Carrier Wave\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_cw -f <FREQ>
         Start TX Continuous Modulated Signal\t: prodtest_cmd.py -p <COM> -a start_tx_cont -f <FREQ>
-        Start TX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_sweep <START FREQ> <STOP FREQ>
+        Start TX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_sweep <START FREQ> <STOP FREQ> -t <TIMESPAN>(milliseconds)
         Start RX test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx -f <FREQ>
-        Start RX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx_sweep <START FREQ> <STOP FREQ>
+        Start RX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx_sweep <START FREQ> <STOP FREQ> -t <TIMESPAN>(milliseconds)
         Set XTrim Value\t\t\t\t: prodtest_cmd.py -p <COM> -a set_xtrim <VALUE>
         Set Tx Power\t\t\t\t: prodtest_cmd.py -p <COM> -a set_txpower <VALUE>[3(-20dBm), 4(-10dBm), 5(-5dBm), 8(0dBm), 15(4dBm)]
         Help\t\t\t\t\t: prodtest_cmd.py -h
@@ -589,7 +589,7 @@ def main():
                         dest        = 'timespan',
                         required    = False,
                         type        = int,
-                        default     = 1000,
+                        default     = 100,
                         help        = 'Channel duration in sweeping test',
                         )
 
