@@ -28,6 +28,8 @@ HCI_OPCODE_HCI_LE_TRANSMITTER_TEST  = '201E'
 HCI_OPCODE_HCI_LE_TEST_END          = '201F'
 
 ACTION_LIST_ENTRY0                  = 0
+FREQ_LIST_ENTRY0                    = 0
+FREQ_LIST_ENTRY1                    = 1
 
 
 dict_error_codes = {
@@ -105,13 +107,15 @@ dict_error_codes = {
 
 curr_sweep_freq = -1
 sweep_rf_on = False
+start_freq  = -1
+stop_freq   = -1
 
 data_ready  = threading.Event()
  
  
 def keyboard_poller():
 
-    input("Press Enter to terminate the test...\r\n")
+    input("***********************************\r\n Press Enter to terminate the test \r\n***********************************\r\n")
 
     data_ready.set()
 
@@ -317,11 +321,13 @@ def reset_handler(args):
 
 def start_tx_handler(args):
 
-    if args.freq in range(0, 40):
+    freq = args.freq[FREQ_LIST_ENTRY0]
+
+    if freq in range(0, 40):
         # Insert the frequency index to cmd[-2]
         cmd = bytearray(b'\x01\x1E\x20\x03\x25\x00')
 
-        cmd.insert(-2, args.freq)
+        cmd.insert(-2, freq)
 
         return cmd
 
@@ -330,11 +336,13 @@ def start_tx_handler(args):
 
 def start_tx_cw_handler(args):
 
-    if args.freq in range(0, 40):
+    freq = args.freq[FREQ_LIST_ENTRY0]
+
+    if freq in range(0, 40):
         # Insert the frequency index to cmd[-2]
         cmd = bytearray(b'\x01\x1E\x20\x03\x25\x08')
 
-        cmd.insert(-2, args.freq)
+        cmd.insert(-2, freq)
 
         return cmd
 
@@ -343,11 +351,13 @@ def start_tx_cw_handler(args):
 
 def start_tx_cont_handler(args):
 
-    if args.freq in range(0, 40):
+    freq = args.freq[FREQ_LIST_ENTRY0]
+
+    if freq in range(0, 40):
         # Insert the frequency index to cmd[-2]
         cmd = bytearray(b'\x01\x1E\x20\x03\x25\x09')
 
-        cmd.insert(-2, args.freq)
+        cmd.insert(-2, freq)
 
         return cmd
 
@@ -356,10 +366,12 @@ def start_tx_cont_handler(args):
 
 def start_rx_handler(args):
 
-    if args.freq in range(0, 40):
+    freq = args.freq[FREQ_LIST_ENTRY0]
+
+    if freq in range(0, 40):
         cmd = bytearray(b'\x01\x1D\x20\x01')
 
-        cmd.append(args.freq)
+        cmd.append(freq)
 
         return cmd
 
@@ -370,92 +382,48 @@ def stop_test_handler(args):
 
     return bytearray(b'\x01\x1F\x20\x00')
 
+def sweep_test_channel_update(args):
+
+    global curr_sweep_freq
+    global start_freq
+    global stop_freq
+
+    args_freq_list_len = len(args.freq)
+
+    if start_freq == -1 or stop_freq == -1:
+        if args_freq_list_len == 2:
+            start_freq  = int(args.freq[FREQ_LIST_ENTRY0])
+            stop_freq   = int(args.freq[FREQ_LIST_ENTRY1])
+        else:
+            start_freq  = int(0)
+            stop_freq   = int(39)
+
+        curr_sweep_freq = start_freq
+    else:
+        curr_sweep_freq = curr_sweep_freq + 1
+
+    if curr_sweep_freq == stop_freq + 1:
+        curr_sweep_freq = start_freq
+
+    args.freq[FREQ_LIST_ENTRY0] = curr_sweep_freq;
+
 def start_tx_sweep_handler(args):
 
-    global curr_sweep_freq
-    global sweep_rf_on
+    sweep_test_channel_update(args)
 
-    args_action_len = len(args.action)
+    print ("start tx sweeping on channel\t{}".format(curr_sweep_freq))
+    sys.stdout.flush()
 
-    if args_action_len == 1:
-        start_freq  = int(0)
-        stop_freq   = int(39)
-    elif args_action_len == 2:
-        start_freq  = int(args.action[1])
-        stop_freq   = int(39)
-    elif args_action_len == 3:
-        start_freq  = int(args.action[1])
-        stop_freq   = int(args.action[2])
-
-    if sweep_rf_on == False:
-
-        if curr_sweep_freq == -1:
-            curr_sweep_freq = start_freq
-        else:
-            curr_sweep_freq = curr_sweep_freq + 1
-
-        if curr_sweep_freq == stop_freq + 1:
-            curr_sweep_freq = start_freq
-
-        args.freq = curr_sweep_freq;
-
-        print ("start tx sweeping on channel\t{}".format(curr_sweep_freq))
-        sys.stdout.flush()
-
-        sweep_rf_on = True
-
-        return start_tx_cw_handler(args)
-    else:
-        print ("stop tx sweeping on channel\t{}".format(curr_sweep_freq))
-        sys.stdout.flush()
-
-        sweep_rf_on = False
-
-        return stop_test_handler(args)
-
+    return start_tx_cw_handler(args)
 
 def start_rx_sweep_handler(args):
-    global curr_sweep_freq
-    global sweep_rf_on
 
-    args_action_len = len(args.action)
+    sweep_test_channel_update(args)
 
-    if args_action_len == 1:
-        start_freq  = int(0)
-        stop_freq   = int(39)
-    elif args_action_len == 2:
-        start_freq  = int(args.action[1])
-        stop_freq   = int(39)
-    elif args_action_len == 3:
-        start_freq  = int(args.action[1])
-        stop_freq   = int(args.action[2])
+    print ("start tx sweeping on channel\t{}".format(curr_sweep_freq))
+    sys.stdout.flush()
 
-    if sweep_rf_on == False:
-
-        if curr_sweep_freq == -1:
-            curr_sweep_freq = start_freq
-        else:
-            curr_sweep_freq = curr_sweep_freq + 1
-
-        if curr_sweep_freq == stop_freq + 1:
-            curr_sweep_freq = start_freq
-
-        args.freq = curr_sweep_freq;
-
-        print ("start rx sweeping on channel\t{}".format(curr_sweep_freq))
-        sys.stdout.flush()
-
-        sweep_rf_on = True
-
-        return start_rx_handler(args)
-    else:
-        print ("stop rx sweeping on channel\t{}".format(curr_sweep_freq))
-        sys.stdout.flush()
-
-        sweep_rf_on = False
-
-        return stop_test_handler(args)
-
+    return start_rx_handler(args)
 
 def set_xtrim_handler(args):
 
@@ -469,7 +437,6 @@ def set_txpower_handler(args):
 
     return cmd
 # ----------------------------------------
-
 
 def send_cmd(args, ser):
 
@@ -547,9 +514,9 @@ def usage(name=None):
         Start TX Test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx -f <FREQ>
         Start TX Carrier Wave\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_cw -f <FREQ>
         Start TX Continuous Modulated Signal\t: prodtest_cmd.py -p <COM> -a start_tx_cont -f <FREQ>
-        Start TX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_sweep <START FREQ> <STOP FREQ> -t <TIMESPAN>(milliseconds)
+        Start TX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_sweep -f <START FREQ> <STOP FREQ> -t <TIMESPAN>
         Start RX test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx -f <FREQ>
-        Start RX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx_sweep <START FREQ> <STOP FREQ> -t <TIMESPAN>(milliseconds)
+        Start RX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx_sweep -f <START FREQ> <STOP FREQ> -t <TIMESPAN>
         Set XTrim Value\t\t\t\t: prodtest_cmd.py -p <COM> -a set_xtrim <VALUE>
         Set Tx Power\t\t\t\t: prodtest_cmd.py -p <COM> -a set_txpower <VALUE>[3(-20dBm), 4(-10dBm), 5(-5dBm), 8(0dBm), 15(4dBm)]
         Help\t\t\t\t\t: prodtest_cmd.py -h
@@ -581,7 +548,7 @@ def main():
                         dest        = 'freq',
                         required    = False,
                         type        = int,
-                        default     = -1,
+                        nargs       = '*',
                         help        = 'Channle Index(0 to 39) to be tested.',
                         )
 
@@ -590,7 +557,7 @@ def main():
                         required    = False,
                         type        = int,
                         default     = 100,
-                        help        = 'Channel duration in sweeping test',
+                        help        = 'duration(ms) in a channel in sweeping tests',
                         )
 
     parser.add_argument('-l', '--log',
@@ -610,13 +577,7 @@ def main():
 
     single_action = True
 
-    if args.action[ACTION_LIST_ENTRY0] in ['start_tx', 'start_tx_cw', 'start_tx_cont', 'start_rx']:
-        single_action = True
-        if args.freq not in range(0, 40):
-            print ("!!! Please specify the frequency index !!!")
-            print (usage())
-            exit()
-    elif args.action[ACTION_LIST_ENTRY0] in ['start_tx_sweep', 'start_rx_sweep']:
+    if args.action[ACTION_LIST_ENTRY0] in ['start_tx_sweep', 'start_rx_sweep']:
         single_action = False
 
     ser = serial.Serial(
@@ -643,10 +604,17 @@ def main():
 
             loop = True
 
+            user_action_cache = args.action[ACTION_LIST_ENTRY0]
+
             while loop:
+                args.action[ACTION_LIST_ENTRY0] = user_action_cache
                 send_cmd(args, ser)
                 recv_rsp(args, ser)
                 time.sleep(args.timespan / 1000)
+
+                args.action[ACTION_LIST_ENTRY0] = 'stop_test'
+                send_cmd(args, ser)
+                recv_rsp(args, ser)
 
                 if data_ready.isSet():
                     loop = False
