@@ -421,13 +421,13 @@ def start_rx_sweep_handler(args):
 
 def set_xtrim_handler(args):
 
-    cmd = bytearray(b'\x41\x4D\x31') + int(args.action[1]).to_bytes(2, byteorder='big')
+    cmd = bytearray(b'\x41\x4D\x31') + int(args.action[ACTION_LIST_ENTRY1]).to_bytes(2, byteorder='big')
 
     return cmd
 
 def set_txpower_handler(args):
 
-    cmd = bytearray(b'\x41\x4D\x30') + int(args.action[1]).to_bytes(2, byteorder='big')
+    cmd = bytearray(b'\x41\x4D\x30') + int(args.action[ACTION_LIST_ENTRY1]).to_bytes(2, byteorder='big')
 
     return cmd
 # ----------------------------------------
