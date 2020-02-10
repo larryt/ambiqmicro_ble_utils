@@ -28,6 +28,7 @@ HCI_OPCODE_HCI_LE_TRANSMITTER_TEST  = '201E'
 HCI_OPCODE_HCI_LE_TEST_END          = '201F'
 
 ACTION_LIST_ENTRY0                  = 0
+ACTION_LIST_ENTRY1                  = 1
 FREQ_LIST_ENTRY0                    = 0
 FREQ_LIST_ENTRY1                    = 1
 
@@ -143,8 +144,8 @@ def HCI_LE_Transmitter_Test_parser(args, rawdata):
         '05' : '00000000',
         '06' : '00001111',
         '07' : '01010101',
-        '08' : 'Carrier Wave (propietary)',
-        '09' : 'Continuous Modulated Signla (propietary)',
+        '08' : 'Carrier Wave', # am propietary parameter value
+        '09' : 'Continuous Modulated Signal', # am propietary parameter value
     }
 
     HCI_LE_TRANSMITTER_TEST_COMMAND_PARAMETERS_TX_CHANNEL_OFFSET            = 0
@@ -321,12 +322,22 @@ def reset_handler(args):
 
 def start_tx_handler(args):
 
-    freq = args.freq[FREQ_LIST_ENTRY0]
+    cmd         = bytearray(b'\x01\x1E\x20\x03\x25')
+    freq        = args.freq[FREQ_LIST_ENTRY0]
+
+    if len(args.action) < 2:
+        return None
+
+    payload_int = int(args.action[ACTION_LIST_ENTRY1])
+
+    if payload_int in range (0, 10):
+        # Append the payload index to cmd
+        cmd.append(payload_int)
+    else:
+        return None
 
     if freq in range(0, 40):
         # Insert the frequency index to cmd[-2]
-        cmd = bytearray(b'\x01\x1E\x20\x03\x25\x00')
-
         cmd.insert(-2, freq)
 
         return cmd
@@ -336,33 +347,16 @@ def start_tx_handler(args):
 
 def start_tx_cw_handler(args):
 
-    freq = args.freq[FREQ_LIST_ENTRY0]
+    args.action.append(8)
 
-    if freq in range(0, 40):
-        # Insert the frequency index to cmd[-2]
-        cmd = bytearray(b'\x01\x1E\x20\x03\x25\x08')
-
-        cmd.insert(-2, freq)
-
-        return cmd
-
-    else:
-        return None
+    print (args.action)
+    return start_tx_handler(args)
 
 def start_tx_cont_handler(args):
 
-    freq = args.freq[FREQ_LIST_ENTRY0]
+    args.action.append(9)
 
-    if freq in range(0, 40):
-        # Insert the frequency index to cmd[-2]
-        cmd = bytearray(b'\x01\x1E\x20\x03\x25\x09')
-
-        cmd.insert(-2, freq)
-
-        return cmd
-
-    else:
-        return None
+    return start_tx_handler(args)
 
 def start_rx_handler(args):
 
@@ -470,9 +464,7 @@ def send_cmd(args, ser):
                 (assembler, parser) = dict_hci_pkt_types.get(pkt_type, (None, None))
 
                 if parser is not None:
-                    ret = parser(args, cmd[HCI_PKT_PAYLOAD_OFFSET:])
-
-                    print (ret)
+                    print (parser(args, cmd[HCI_PKT_PAYLOAD_OFFSET:]))
 
             else:
                 if description is not None:
@@ -480,15 +472,18 @@ def send_cmd(args, ser):
 
             ser.write(cmd)
 
+        else:
+            print ('!!! Error !!! Please check the parameters')
+
     else:
-        print ('{} not supported'.format(args.action))
+        print ("!!! Error !!! {} not supported".format(args.action))
 
 def recv_rsp(args, ser):
 
     HCI_PKT_INDICATOR_OFFSET    = 0
     HCI_PKT_PAYLOAD_OFFSET      = 1
 
-    res = ser.read(1000)
+    res = ser.read(2000)
 
     if len(res) > 0:
         if args.log is True:
@@ -505,13 +500,15 @@ def recv_rsp(args, ser):
             ret = 'No parser available for HCI Packet Type 0x{}'.format(pkt_type)
 
         print (ret)
+    else:
+        print("no response received")
 
 
 def usage(name=None):                                                            
     return '''
         Reset DUT\t\t\t\t: prodtest_cmd.py -p <COM> -a reset
         Stop Test\t\t\t\t: prodtest_cmd.py -p <COM> -a stop_test
-        Start TX Test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx -f <FREQ>
+        Start TX Test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx <PAYLOAD>[0(PRBS9), 1(11110000), 2(10101010), 3(PRBS15), 4(11111111), 5(00000000), 6(00001111), 7(01010101), 8(Carrier Wave), 9(Continuous Modulated Signal)] -f <FREQ>
         Start TX Carrier Wave\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_cw -f <FREQ>
         Start TX Continuous Modulated Signal\t: prodtest_cmd.py -p <COM> -a start_tx_cont -f <FREQ>
         Start TX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_sweep -f <START FREQ> <STOP FREQ> -t <TIMESPAN>
@@ -595,7 +592,7 @@ def main():
 
     if ser.is_open is True:
 
-        if single_action == True:
+        if single_action is True:
             send_cmd(args, ser)
             recv_rsp(args, ser)
         else:
@@ -613,6 +610,7 @@ def main():
                 time.sleep(args.timespan / 1000)
 
                 args.action[ACTION_LIST_ENTRY0] = 'stop_test'
+
                 send_cmd(args, ser)
                 recv_rsp(args, ser)
 
