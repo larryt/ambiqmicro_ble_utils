@@ -11,7 +11,7 @@ import threading
 from array import *
 
 VERSION     = 0
-SUBVERSION  = 1
+SUBVERSION  = 2
 
 HCI_PKT_INDICATOR_COMMAND           = '01'
 HCI_PKT_INDICATOR_ACL_DATA          = '02'
@@ -433,7 +433,7 @@ def set_xtrim_handler(args):
 
 def set_txpower_handler(args):
 
-    cmd = bytearray(b'\x41\x4D\x30') + int(args.action[1]).to_bytes(1, byteorder='big')
+    cmd = bytearray(b'\x41\x4D\x30') + int(args.action[1]).to_bytes(2, byteorder='big')
 
     return cmd
 # ----------------------------------------
