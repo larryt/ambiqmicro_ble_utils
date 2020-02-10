@@ -11,7 +11,7 @@ import threading
 from array import *
 
 VERSION     = 0
-SUBVERSION  = 2
+SUBVERSION  = 3
 
 HCI_PKT_INDICATOR_COMMAND           = '01'
 HCI_PKT_INDICATOR_ACL_DATA          = '02'
