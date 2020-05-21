@@ -11,7 +11,7 @@ import threading
 from array import *
 
 VERSION     = 0
-SUBVERSION  = 3
+SUBVERSION  = 4
 
 HCI_PKT_INDICATOR_COMMAND           = '01'
 HCI_PKT_INDICATOR_ACL_DATA          = '02'
@@ -20,7 +20,8 @@ HCI_PKT_INDICATOR_EVENT             = '04'
 
 VS_PKT_INDICATOR_COMMAND            = '41'  # char 'A'
 
-HCI_EVENTCODE_HCI_COMMAND_COMPLETE  = '0E'
+HCI_EVTCODE_HCI_COMMAND_COMPLETE              = '0E'
+HCI_EVTCODE_HCI_NUMBER_OF_COMPLETED_PACKETS   = '13'
 
 HCI_OPCODE_HCI_RESET                = '0C03'
 HCI_OPCODE_HCI_LE_RECEIVER_TEST     = '201D'
@@ -31,7 +32,6 @@ ACTION_LIST_ENTRY0                  = 0
 ACTION_LIST_ENTRY1                  = 1
 FREQ_LIST_ENTRY0                    = 0
 FREQ_LIST_ENTRY1                    = 1
-
 
 dict_error_codes = {
     '00' : 'Success',
@@ -250,7 +250,40 @@ def HCI_Command_Complete_parser(args, rawdata):
         ret =   '\tNo parser available for Opcode 0x{}\r\n'.format(opcode)
 
     return ret
+
+def HCI_Number_Of_Completed_Packets_parser(args, rawdata):
+
+    EVENT_PARAM_NUM_OF_HANDLES_OFFSET = 0
+    EVENT_PARAM_CONNECTION_HANDLE = 1
+    EVENT_PARAM_HC_NUM_OF_COMPLETED_PACKETS = 3
+
+    num_of_conns = ''.join('{:02X}'.format(rawdata[EVENT_PARAM_NUM_OF_HANDLES_OFFSET]))
+
+    if args.log is True:
+        ret =   '\tHCI_Number_Of_Completed_Packets\r\n'
+        ret +=  '\t[Number of Handles] 0x{:02X}\r\n'.format(rawdata[EVENT_PARAM_NUM_OF_HANDLES_OFFSET])
+
+    for idx in range(int(num_of_conns)):
+        conn_handle = ''.join('{:02X}'.format(rawdata[idx * 2 + EVENT_PARAM_CONNECTION_HANDLE + 1])) + \
+                    ''.join('{:02X}'.format(rawdata[idx * 2 + EVENT_PARAM_CONNECTION_HANDLE]))
+
+        num_of_packets = ''.join('{:02X}'.format(rawdata[idx * 2 + EVENT_PARAM_HC_NUM_OF_COMPLETED_PACKETS + 1])) + \
+                    ''.join('{:02X}'.format(rawdata[idx * 2 + EVENT_PARAM_HC_NUM_OF_COMPLETED_PACKETS]))
+
+        if args.log is True:
+            # ret =   '\tHCI_Number_Of_Completed_Packets\r\n'
+            # ret +=  '\t[Number of Handles] 0x{:02X}\r\n'.format(conn_handle)
+            ret +=  '\t[Connection Handle] 0x{}\r\n'.format(conn_handle)
+            ret +=  '\t[HC Number of Completed Packets] 0x{}'.format(num_of_packets)
+        else:
+            ret = ''
+    # else:
+        # ret =   '\tNo parser available for Opcode 0x{}\r\n'.format(opcode)
+
+    return ret
 # ----------------------------------------------------
+
+
 
 # ++++++++++++++++++++++++++++++++++++++++++++++
 # Callbacks in the dictionary dict_hci_pkt_types
@@ -287,13 +320,14 @@ def pkt_event_assembler(args, rawdata):
 
 def pkt_event_parser(args, rawdata):
 
-    dict_hci_pkt_event_codes = {
-        HCI_EVENTCODE_HCI_COMMAND_COMPLETE : ('HCI_Command_Complete', HCI_Command_Complete_parser),
-    }
-
     HCI_PKT_EVENT_EVENT_CODE_OFFSET         = 0
     HCI_PKT_EVENT_PARAM_TOTAL_LEN_OFFSET    = 1
     HCI_PKT_EVENT_EVENT_PARAM_OFFSET        = 2
+
+    dict_hci_pkt_event_codes = {
+        HCI_EVTCODE_HCI_COMMAND_COMPLETE            : ('HCI_Command_Complete',              HCI_Command_Complete_parser),
+        HCI_EVTCODE_HCI_NUMBER_OF_COMPLETED_PACKETS : ('HCI_Number_Of_Completed_Packets',   HCI_Number_Of_Completed_Packets_parser),
+    }
 
     code = ''.join('{:02X}'.format(rawdata[HCI_PKT_EVENT_EVENT_CODE_OFFSET]))
     (event_name, parser) = dict_hci_pkt_event_codes.get(code, (None, None))
@@ -330,7 +364,7 @@ def start_tx_handler(args):
 
     payload_int = int(args.action[ACTION_LIST_ENTRY1])
 
-    if payload_int in range (0, 10):
+    if payload_int in range (0, 10) or payload_int == 255:
         # Append the payload index to cmd
         cmd.append(payload_int)
     else:
@@ -480,28 +514,38 @@ def send_cmd(args, ser):
 
 def recv_rsp(args, ser):
 
-    HCI_PKT_INDICATOR_OFFSET    = 0
-    HCI_PKT_PAYLOAD_OFFSET      = 1
+    HCI_PKT_INDICATOR_OFFSET                = 0
+    HCI_PKT_PAYLOAD_OFFSET                  = 1
+    HCI_PKT_EVENT_PARAM_TOTAL_LEN_OFFSET    = 2
 
     res = ser.read(2000)
 
-    if len(res) > 0:
+    cur_idx = 0
+
+    if len(res) <= 0:
+        print("no response received")
+    else:
         if args.log is True:
             print ('>>', ' '.join('0x{:02X}'.format(x) for x in res))
 
-        pkt_type = ''.join('{:02X}'.format(res[HCI_PKT_INDICATOR_OFFSET]))
+        while cur_idx < len(res) - 1:
 
-        (assembler, parser) = dict_hci_pkt_types.get(pkt_type, (None, None))
+            packet_length = HCI_PKT_EVENT_PARAM_TOTAL_LEN_OFFSET + 1 + int(''.join('{:02X}'.format(res[cur_idx + HCI_PKT_EVENT_PARAM_TOTAL_LEN_OFFSET])))
 
-        if parser is not None:
-            ret = parser(args, res[HCI_PKT_PAYLOAD_OFFSET:])
+            pkt_type = ''.join('{:02X}'.format(res[HCI_PKT_INDICATOR_OFFSET]))
 
-        else:
-            ret = 'No parser available for HCI Packet Type 0x{}'.format(pkt_type)
+            (assembler, parser) = dict_hci_pkt_types.get(pkt_type, (None, None))
 
-        print (ret)
-    else:
-        print("no response received")
+            if parser is not None:
+                ret = parser(args, res[cur_idx + HCI_PKT_PAYLOAD_OFFSET:])
+
+            else:
+                ret = 'No parser available for HCI Packet Type 0x{}'.format(pkt_type)
+
+            print (ret)
+
+            cur_idx = cur_idx + packet_length
+
 
 
 def usage(name=None):                                                            
