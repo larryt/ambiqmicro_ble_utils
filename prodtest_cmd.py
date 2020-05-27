@@ -657,7 +657,7 @@ def usage(name=None):
         Set Tx Power\t\t\t\t: prodtest_cmd.py -p <COM> -a set_txpower <VALUE>[3(-20dBm), 4(-10dBm), 5(-5dBm), 8(0dBm), 15(4dBm)]
         Read version\t\t\t\t: prodtest_cmd.py -p <COM> -a read_ver
         Register read\t\t\t\t: prodtest_cmd.py -p <COM> -a regr <ADDR in hex>
-        Register write\t\t\t\t: prodtest_cmd.py -p <COM> -a regw <ADDR in hex> <VAL in hex>
+        Register write\t\t\t\t: prodtest_cmd.py -p <COM> -a regw <ADDR in hex> <VALUE in hex>
         Help\t\t\t\t\t: prodtest_cmd.py -h
         '''
 
