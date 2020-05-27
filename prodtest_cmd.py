@@ -10,8 +10,8 @@ import threading
 
 from array import *
 
-VERSION     = 0
-SUBVERSION  = 4
+VERSION     = '0'
+SUBVERSION  = '5rc0'
 
 HCI_PKT_INDICATOR_COMMAND           = '01'
 HCI_PKT_INDICATOR_ACL_DATA          = '02'
@@ -28,8 +28,14 @@ HCI_OPCODE_HCI_LE_RECEIVER_TEST     = '201D'
 HCI_OPCODE_HCI_LE_TRANSMITTER_TEST  = '201E'
 HCI_OPCODE_HCI_LE_TEST_END          = '201F'
 
+HCI_OPCODE_HCI_VS_READ_VER          = 'FD01'
+HCI_OPCODE_HCI_VS_REG_READ          = 'FD02'
+HCI_OPCODE_HCI_VS_REG_WRITE         = 'FD03'
+
+
 ACTION_LIST_ENTRY0                  = 0
 ACTION_LIST_ENTRY1                  = 1
+ACTION_LIST_ENTRY2                  = 2
 FREQ_LIST_ENTRY0                    = 0
 FREQ_LIST_ENTRY1                    = 1
 
@@ -162,8 +168,32 @@ def HCI_LE_Transmitter_Test_parser(args, rawdata):
     return ret
 
 def HCI_LE_Test_End_parser(args, rawdata):
-    # nothing to do for this command. More like a place holder here.
+    # nothing to do for this command. A place holder here.
     return None
+
+def HCI_Vs_Read_Ver_parser(args, rawdata):
+    # nothing to do for this command. A place holder here.
+    return None
+
+def HCI_Vs_Reg_Read_parser(args, rawdata):
+
+    HCI_VS_REG_READ_ADDR_OFFSET = 0
+
+    ret = 'Address: 0x' + ''.join(format(x, '02X') for x in (rawdata[HCI_VS_REG_READ_ADDR_OFFSET:])[::-1])
+
+    return ret
+
+def HCI_Vs_Reg_Write_parser(args, rawdata):
+
+    HCI_VS_REG_WRITE_ADDR_OFFSET = 0
+    HCI_VS_REG_WRITE_VALUE_OFFSET = 4
+
+    addr    = ''.join(format(x, '02X') for x in (rawdata[HCI_VS_REG_WRITE_ADDR_OFFSET:HCI_VS_REG_WRITE_VALUE_OFFSET])[::-1])
+    val     = ''.join(format(x, '02X') for x in (rawdata[HCI_VS_REG_WRITE_VALUE_OFFSET:])[::-1])
+
+    ret = 'Address: 0x'  + addr + ', Value: 0x' + val
+    return ret
+
 # ----------------------------------------------------
 
 # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -213,14 +243,54 @@ def HCI_LE_Test_End_Return_Parameters_parser(args, rawdata):
         ret +=  'Number of packets received: ' + '(0x{}), '.format(num_of_pkt_recv)
 
     return ret
+
+def HCI_Vs_Read_Ver_RetParam_parser(args, rawdata):
+
+    HCI_VS_READ_VER_RETPARAM_STATUS_OFFSET = 0
+    HCI_VS_READ_VER_RETPARAM_VER_OFFSET = 1
+
+    status = ''.join('{:02X}'.format(rawdata[HCI_VS_READ_VER_RETPARAM_STATUS_OFFSET]))
+    ver = rawdata[HCI_VS_READ_VER_RETPARAM_STATUS_OFFSET:].decode("ASCII")
+
+    ret =   'Status: ' + dict_error_codes.get(status, "N/A") + ' (0x{}), '.format(status)
+    ret +=  'Ver: ' + ver
+
+    return ret
+
+def HCI_Vs_Reg_Read_RetParam_parser(args, rawdata):
+
+    HCI_VS_REG_READ_RETPARAM_STATUS_OFFSET = 0
+    HCI_VS_REG_READ_RETPARAM_VALUE_OFFSET = 1
+
+    status = ''.join('{:02X}'.format(rawdata[HCI_VS_REG_READ_RETPARAM_STATUS_OFFSET]))
+    val = ''.join(format(x, '02X') for x in (rawdata[HCI_VS_REG_READ_RETPARAM_VALUE_OFFSET:])[::-1])
+
+    ret =   'Status: ' + dict_error_codes.get(status, "N/A") + ' (0x{}), '.format(status)
+    ret +=  'Value: 0x' + val
+
+    return ret
+
+def HCI_Vs_Reg_Write_RetParam_parser(args, rawdata):
+
+    HCI_VS_REG_WRITE_RETPARAM_STATUS_OFFSET = 0
+
+    status = ''.join('{:02X}'.format(rawdata[HCI_VS_REG_WRITE_RETPARAM_STATUS_OFFSET]))
+
+    ret =   'Status: ' + dict_error_codes.get(status, "N/A") + ' (0x{}), '.format(status)
+
+    return ret
+
 # -------------------------------------------------------------------
 
 # Name, command assembler, command parser, response parser
 dict_opcodes = {
-    HCI_OPCODE_HCI_RESET                : ('HCI_Reset',               None, HCI_Reset_parser,                 HCI_Reset_Return_Parameters_parser),
-    HCI_OPCODE_HCI_LE_RECEIVER_TEST     : ('HCI_LE_Receiver_Test',    None, HCI_LE_Receiver_Test_parser,      HCI_LE_Receiver_Test_Return_Parameters_parser),
-    HCI_OPCODE_HCI_LE_TRANSMITTER_TEST  : ('HCI_LE_Transmitter_Test', None, HCI_LE_Transmitter_Test_parser,   HCI_LE_Transmitter_Test_Return_Parameters_parser),
-    HCI_OPCODE_HCI_LE_TEST_END          : ('HCI_LE_Test_End',         None, HCI_LE_Test_End_parser,           HCI_LE_Test_End_Return_Parameters_parser),
+    HCI_OPCODE_HCI_RESET                : ('HCI_Reset',                 None, HCI_Reset_parser,                 HCI_Reset_Return_Parameters_parser),
+    HCI_OPCODE_HCI_LE_RECEIVER_TEST     : ('HCI_LE_Receiver_Test',      None, HCI_LE_Receiver_Test_parser,      HCI_LE_Receiver_Test_Return_Parameters_parser),
+    HCI_OPCODE_HCI_LE_TRANSMITTER_TEST  : ('HCI_LE_Transmitter_Test',   None, HCI_LE_Transmitter_Test_parser,   HCI_LE_Transmitter_Test_Return_Parameters_parser),
+    HCI_OPCODE_HCI_LE_TEST_END          : ('HCI_LE_Test_End',           None, HCI_LE_Test_End_parser,           HCI_LE_Test_End_Return_Parameters_parser),
+    HCI_OPCODE_HCI_VS_READ_VER          : ('HCI_VS_READ_VER',           None, HCI_Vs_Read_Ver_parser,           HCI_Vs_Read_Ver_RetParam_parser),
+    HCI_OPCODE_HCI_VS_REG_READ          : ('HCI_VS_REG_READ',           None, HCI_Vs_Reg_Read_parser,           HCI_Vs_Reg_Read_RetParam_parser),
+    HCI_OPCODE_HCI_VS_REG_WRITE         : ('HCI_VS_REG_WRITE',          None, HCI_Vs_Reg_Write_parser,          HCI_Vs_Reg_Write_RetParam_parser),
 }
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -408,7 +478,7 @@ def start_rx_handler(args):
 
 def stop_test_handler(args):
 
-    return bytearray(b'\x01\x1F\x20\x00')
+    return bytearray(b'\x01') + (bytearray.fromhex(HCI_OPCODE_HCI_LE_TEST_END))[::-1] + bytearray(b'\x00')
 
 def sweep_test_channel_update(args):
 
@@ -455,15 +525,37 @@ def start_rx_sweep_handler(args):
 
 def set_xtrim_handler(args):
 
-    cmd = bytearray(b'\x41\x4D\x31') + int(args.action[ACTION_LIST_ENTRY1]).to_bytes(2, byteorder='big')
-
-    return cmd
+    return bytearray(b'\x41\x4D\x31') + int(args.action[ACTION_LIST_ENTRY1]).to_bytes(2, byteorder='big')
 
 def set_txpower_handler(args):
 
-    cmd = bytearray(b'\x41\x4D\x30') + int(args.action[ACTION_LIST_ENTRY1]).to_bytes(2, byteorder='big')
+    return bytearray(b'\x41\x4D\x30') + int(args.action[ACTION_LIST_ENTRY1]).to_bytes(2, byteorder='big')
 
-    return cmd
+def read_version_handler(args):
+
+    return bytearray.fromhex(HCI_PKT_INDICATOR_COMMAND) + (bytearray.fromhex(HCI_OPCODE_HCI_VS_READ_VER))[::-1] + bytearray(b'\x00')
+
+def reg_read_handler(args):
+
+    tmp = args.action[ACTION_LIST_ENTRY1].replace('0x', '')
+
+    addr = (bytearray.fromhex(tmp.zfill(8)))[::-1]
+
+    return bytearray.fromhex(HCI_PKT_INDICATOR_COMMAND) + (bytearray.fromhex(HCI_OPCODE_HCI_VS_REG_READ))[::-1] + bytes([len(addr)]) + addr
+
+
+def reg_write_handler(args):
+
+    tmp = args.action[ACTION_LIST_ENTRY1].replace('0x', '')
+
+    addr = (bytearray.fromhex(tmp.zfill(8)))[::-1]
+
+    tmp = args.action[ACTION_LIST_ENTRY2].replace('0x', '')
+
+    val = bytearray.fromhex(tmp.zfill(8))[::-1]
+
+    return bytearray.fromhex(HCI_PKT_INDICATOR_COMMAND) + (bytearray.fromhex(HCI_OPCODE_HCI_VS_REG_WRITE))[::-1] + bytes([len(addr) + len(val)]) + addr + val
+
 # ----------------------------------------
 
 def send_cmd(args, ser):
@@ -479,6 +571,9 @@ def send_cmd(args, ser):
         'stop_test'     : ('Stop Test',                             stop_test_handler),
         'set_xtrim'     : ('Set 32MHz Trim Value',                  set_xtrim_handler),
         'set_txpower'   : ('Set Tx Power',                          set_txpower_handler),
+        'ver'           : ('Read version',                          read_version_handler),
+        'regr'          : ('Register read',                         reg_read_handler),
+        'regw'          : ('Register Write',                        reg_write_handler),
     }
 
     HCI_PKT_INDICATOR_OFFSET    = 0
@@ -558,8 +653,11 @@ def usage(name=None):
         Start TX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_tx_sweep -f <START FREQ> <STOP FREQ> -t <TIMESPAN>
         Start RX test\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx -f <FREQ>
         Start RX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx_sweep -f <START FREQ> <STOP FREQ> -t <TIMESPAN>
-        Set XTrim Value\t\t\t\t: prodtest_cmd.py -p <COM> -a set_xtrim <VALUE>
+        Set XTrim Value\t\t\t\t: prodtest_cmd.py -p <COM> -a set_xtrim <VALUE in decimal>
         Set Tx Power\t\t\t\t: prodtest_cmd.py -p <COM> -a set_txpower <VALUE>[3(-20dBm), 4(-10dBm), 5(-5dBm), 8(0dBm), 15(4dBm)]
+        Read version\t\t\t\t: prodtest_cmd.py -p <COM> -a ver
+        Register read\t\t\t\t: prodtest_cmd.py -p <COM> -a regr <addr in hex>
+        Register write\t\t\t\t: prodtest_cmd.py -p <COM> -a regw <addr in hex> <val in hex>
         Help\t\t\t\t\t: prodtest_cmd.py -h
         '''
 
@@ -611,7 +709,7 @@ def main():
     parser.add_argument('-v', '--version',
                         help        = 'show the program version',
                         action      = 'version',
-                        version     = '%(prog)s {ver}'.format(ver = 'v%d.%d' %\
+                        version     = '%(prog)s {ver}'.format(ver = 'v%s.%s' %\
                             (VERSION, SUBVERSION)))
 
     args = parser.parse_args()
