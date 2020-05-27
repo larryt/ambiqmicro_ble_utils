@@ -571,7 +571,7 @@ def send_cmd(args, ser):
         'stop_test'     : ('Stop Test',                             stop_test_handler),
         'set_xtrim'     : ('Set 32MHz Trim Value',                  set_xtrim_handler),
         'set_txpower'   : ('Set Tx Power',                          set_txpower_handler),
-        'ver'           : ('Read version',                          read_version_handler),
+        'read_ver'      : ('Read version',                          read_version_handler),
         'regr'          : ('Register read',                         reg_read_handler),
         'regw'          : ('Register Write',                        reg_write_handler),
     }
@@ -655,7 +655,7 @@ def usage(name=None):
         Start RX Sweep\t\t\t\t: prodtest_cmd.py -p <COM> -a start_rx_sweep -f <START FREQ> <STOP FREQ> -t <TIMESPAN>
         Set XTrim Value\t\t\t\t: prodtest_cmd.py -p <COM> -a set_xtrim <VALUE in decimal>
         Set Tx Power\t\t\t\t: prodtest_cmd.py -p <COM> -a set_txpower <VALUE>[3(-20dBm), 4(-10dBm), 5(-5dBm), 8(0dBm), 15(4dBm)]
-        Read version\t\t\t\t: prodtest_cmd.py -p <COM> -a ver
+        Read version\t\t\t\t: prodtest_cmd.py -p <COM> -a read_ver
         Register read\t\t\t\t: prodtest_cmd.py -p <COM> -a regr <addr in hex>
         Register write\t\t\t\t: prodtest_cmd.py -p <COM> -a regw <addr in hex> <val in hex>
         Help\t\t\t\t\t: prodtest_cmd.py -h
