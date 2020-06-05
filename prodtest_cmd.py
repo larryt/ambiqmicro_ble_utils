@@ -11,7 +11,7 @@ import threading
 from array import *
 
 VERSION     = '0'
-SUBVERSION  = '5'
+SUBVERSION  = '6rc0'
 
 HCI_PKT_INDICATOR_COMMAND           = '01'
 HCI_PKT_INDICATOR_ACL_DATA          = '02'
@@ -451,9 +451,11 @@ def start_tx_handler(args):
 
 def start_tx_cw_handler(args):
 
-    args.action.append(8)
+    if len(args.action) < 2:
+        args.action.append(8)
+    else:
+        args.action[ACTION_LIST_ENTRY1] = 8
 
-    print (args.action)
     return start_tx_handler(args)
 
 def start_tx_cont_handler(args):
@@ -751,7 +753,7 @@ def main():
                 recv_rsp(args, ser)
                 time.sleep(args.timespan / 1000)
 
-                args.action[ACTION_LIST_ENTRY0] = 'stop_test'
+                args.action[ACTION_LIST_ENTRY0] = 'reset'
 
                 send_cmd(args, ser)
                 recv_rsp(args, ser)
